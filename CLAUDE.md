@@ -1,0 +1,156 @@
+# CLAUDE.md — IMTS 项目工作指引
+
+## 项目简介
+
+IMTS（Intelligent Mail Task Synergy System）是一个小团队邮件任务管理工具。FastAPI + Vue 3 前后端分离架构，支持本地运行和云服务器部署。
+
+## 工作目录
+
+- 当前工作目录：`c:\Users\58101\Desktop\IMTS-v1.0`
+- Shell 环境：bash（Windows Git Bash），路径使用 Unix 风格 `/`
+
+## 文档体系
+
+| 文档 | 路径 | 用途 |
+|------|------|------|
+| 需求规格 | [docs/requirements.md](docs/requirements.md) | 功能需求、优先级、范围 |
+| 技术架构 | [docs/architecture.md](docs/architecture.md) | 技术选型、API 设计、目录结构 |
+| 设计规范 | [docs/design-spec.md](docs/design-spec.md) | 色彩、字体、间距、组件规范 |
+| 开发计划 | [docs/development-plan.md](docs/development-plan.md) | 分步执行计划、当前状态 |
+| 部署指南 | [docs/deployment.md](docs/deployment.md) | 云服务器购买+部署教程 |
+| 项目概览 | [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | 面向新成员的项目介绍 |
+| 使用教程 | [README.md](README.md) | 面向用户的启动和使用说明 |
+| 优化备忘 | [FUTURE_OPTIMIZATION.md](FUTURE_OPTIMIZATION.md) | 后续优化方向记录 |
+
+## 开发原则
+
+## 1. 动手前先想清楚（Think Before Coding）
+
+**不假设、不藏糊涂、把权衡摊开来说。**
+
+实现之前：
+- 把你的假设明确说出来，不确定就问。
+- 有多种理解时，把所有可能列出来——别擅自挑一个就闷头干。
+- 如果有更简单的方案，说出来，必要时反驳我。
+- 哪里不清楚，就停下来，指出哪里让你困惑，然后问我。
+
+## 2. 最小化原则（Simplicity First）
+
+**只写解决问题的最小代码，不要任何"以防万一"。**
+
+- 不写需求里没要求的功能。
+- 不为一次性使用的代码做抽象。
+- 不加未要求的"灵活性"或"可配置性"。
+- 不为不可能发生的场景写 error handling。
+- 如果你写了 200 行而 50 行就够，请重写。
+
+自问一句："资深工程师会觉得这写得太复杂了吗？"如果是，请简化。
+
+## 3. 外科手术式改动（Surgical Changes）
+
+**只动该动的，只清自己的烂摊子。**
+
+修改现有代码时：
+- 别"顺手改进"周边代码、注释或格式。
+- 别重构没坏的东西。
+- 配合现有的代码风格，哪怕你不喜欢。
+- 看到无关的死代码——告诉我，但别删。
+
+如果你的改动产生了孤儿代码：
+- 删掉因你改动而失去用途的 import / 变量 / 函数。
+- 不要删原本就存在的死代码，除非我让你删。
+
+判断标准：每一行改动都能追溯到我的需求。
+
+## 4. 目标驱动执行（Goal-Driven Execution）
+
+**定义成功标准，然后循环到通过为止。**
+
+把任务转换成可验证的目标：
+- "加个校验" → "写无效输入的测试，然后让它们通过"
+- "修这个 bug" → "写能复现这个 bug 的测试，然后让它通过"
+- "重构 X" → "保证重构前后测试都通过"
+
+多步任务，给一个简短的计划：
+
+1. [步骤] → 验证：[检查项]
+2. [步骤] → 验证：[检查项]
+3. [步骤] → 验证：[检查项]
+
+强的成功标准让你能独立闭环；弱的（比如"让它跑起来"）会让你不停回来问我。
+
+## 项目结构
+
+```
+IMTS-v1.0/
+├── backend/            # FastAPI 后端
+│   └── app/
+│       ├── main.py     # 应用入口 + 静态文件服务
+│       ├── database.py # SQLAlchemy 连接
+│       ├── config.py   # 配置管理（.env 读写）
+│       ├── api/        # tasks / emails / config
+│       ├── models/     # SQLAlchemy ORM
+│       ├── schemas/    # Pydantic 校验 + 枚举
+│       ├── ai/         # AI 引擎（任务提取）
+│       ├── services/   # 邮件同步、任务业务
+│       └── data/       # 数据层
+├── frontend/           # Vue 3 前端
+│   └── src/
+│       ├── App.vue     # 全局 Layout
+│       ├── views/      # Board / Settings
+│       ├── components/ # TaskCard / TaskForm
+│       ├── stores/     # Pinia 状态
+│       └── api/        # Axios 请求
+├── docs/               # 项目文档
+├── devlog/             # 开发日志
+├── scripts/            # 工具脚本
+├── CLAUDE.md
+├── README.md
+├── .env.example
+└── requirements.txt
+```
+
+## 常见任务
+
+### 本地开发启动
+
+```bash
+# 后端（热重载）
+.venv/Scripts/python.exe -m uvicorn backend.app.main:app --port 8501 --reload
+
+# 前端（热更新）
+cd frontend && npm run dev
+```
+
+浏览器访问 http://localhost:5173
+
+### 生产模式（单端口）
+
+```bash
+# 先构建前端
+cd frontend && npm run build
+
+# 后端托管前端静态文件
+.venv/Scripts/python.exe -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8501
+```
+
+浏览器访问 http://localhost:8501
+
+### 验证语法
+
+```bash
+.venv/Scripts/python.exe -c "import ast; ast.parse(open('backend/app/main.py', encoding='utf-8').read()); print('OK')"
+cd frontend && npx vue-tsc --noEmit
+```
+
+### 查看数据库
+
+```bash
+.venv/Scripts/python.exe -c "
+import sqlite3
+conn = sqlite3.connect('imts_demo.db')
+conn.row_factory = sqlite3.Row
+rows = conn.execute('SELECT id, task_name, priority, status FROM tasks').fetchall()
+for r in rows: print(dict(r))
+"
+```

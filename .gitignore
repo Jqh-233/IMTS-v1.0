@@ -1,0 +1,11 @@
+.env
+.venv/
+*.db
+__pycache__/
+*.pyc
+streamlit.out.log
+streamlit.err.log
+
+# frontend
+node_modules/
+frontend/dist/
