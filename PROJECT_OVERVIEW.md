@@ -59,7 +59,6 @@ IMTS-v1.0/
 ├── PROJECT_OVERVIEW.md         # 本文件：项目概览（面向开发者）
 ├── CLAUDE.md                   # AI 助手指引
 ├── FUTURE_OPTIMIZATION.md      # 后续优化备忘
-├── requirements.txt            # Python 依赖
 ├── .env.example                # 环境变量模板
 ├── imts_demo.db                # SQLite 数据库（运行时生成）
 ├── backend/                    # FastAPI 后端

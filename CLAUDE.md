@@ -107,7 +107,8 @@ IMTS-v1.0/
 ├── CLAUDE.md
 ├── README.md
 ├── .env.example
-└── requirements.txt
+├── CLAUDE.md
+└── FUTURE_OPTIMIZATION.md
 ```
 
 ## 常见任务
