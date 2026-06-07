@@ -72,19 +72,13 @@ if errorlevel 1 (
 :venv_ok
 echo   [OK] venv ready
 
-if exist ".venv\.deps_installed" goto :deps_ok
-echo   Installing Python dependencies (first run)...
+echo   Installing/updating Python dependencies...
 .venv\Scripts\python.exe -m pip install -r backend\requirements.txt -q
 if errorlevel 1 (
     echo   [ERROR] pip install failed
     pause
     exit /b 1
 )
-echo installed > ".venv\.deps_installed"
-echo   [OK] Dependencies installed
-goto :step4
-
-:deps_ok
 echo   [OK] Dependencies ready
 
 :step4

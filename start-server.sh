@@ -23,30 +23,34 @@ else
 fi
 echo "  [OK] $($PYTHON --version)"
 
-# 2. Setup venv + deps
-echo "[2/4] Setting up environment..."
+# 2. Setup venv + deps (always reinstall to catch new deps)
+echo "[2/4] Installing dependencies..."
 if [ ! -d ".venv" ]; then
     $PYTHON -m venv .venv
 fi
 source .venv/bin/activate
-if [ ! -f ".venv/.deps_installed" ]; then
-    echo "  Installing dependencies..."
-    pip install -r backend/requirements.txt -q
-    touch .venv/.deps_installed
-fi
+pip install -r backend/requirements.txt -q
 echo "  [OK] Dependencies ready"
 
-# 3. Verify frontend
-echo "[3/4] Checking frontend..."
-if [ ! -d "frontend/dist" ]; then
-    echo "  [WARN] frontend/dist/ not found."
-    echo "  Build it locally with: cd frontend && npm run build"
-    echo "  Then upload the dist/ folder."
-    echo "  Starting backend-only (API docs available)."
+# 3. Database migration
+echo "[3/4] Running database migration..."
+if [ -f "imts_demo.db" ]; then
+    # Existing DB: stamp current state so Alembic knows tables already exist
+    cd backend
+    python -m alembic -c alembic.ini stamp head 2>/dev/null || echo "  (stamp skipped, will upgrade)"
+    cd ..
+else
+    # Fresh DB: Alembic will create tables on first startup
+    echo "  New database will be created on startup"
 fi
-echo "  [OK] Ready"
+echo "  [OK] Migration ready"
 
-# 4. Start
+# 4. Check frontend
+if [ ! -d "frontend/dist" ]; then
+    echo "  [WARN] frontend/dist/ not found — build it locally with: cd frontend && npm run build"
+fi
+
+# 5. Start
 echo "[4/4] Starting server..."
 echo ""
 echo "  IMTS running on http://0.0.0.0:8501"
