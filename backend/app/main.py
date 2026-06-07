@@ -24,6 +24,11 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# 自动建表（首次运行无 .db 文件时创建，已有表则跳过）
+from app.database import engine, Base
+from app.models import Email, Task  # noqa: F401  确保模型注册到 Base.metadata
+Base.metadata.create_all(bind=engine)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -1,20 +1,14 @@
 """邮件列表/详情/同步/提取 API"""
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.ai.task_extractor import extract_task as do_extract_task
 from app.database import get_db
-from app.data.database import connect
 from app.models import Email, Task
 from app.schemas import EmailListOut, EmailOut, TaskOut
-from app.services.mail_sync_service import mark_email_processed as raw_mark_processed
-from app.services.mail_sync_service import sync_qq_recent_emails, sync_sample_emails
-from app.services.task_service import _insert_task, _task_exists_for_email
+from app.services.mail_sync_service import mark_email_processed, sync_qq_recent_emails, sync_sample_emails
 
 router = APIRouter(tags=["emails"])
-DB = Path(__file__).resolve().parent.parent.parent.parent / "imts_demo.db"
 
 
 # -- 查询端点 --
@@ -48,96 +42,142 @@ def get_email(email_id: int, db: Session = Depends(get_db)):
 # -- 演示邮件同步 --
 
 @router.post("/api/sync/demo")
-def sync_demo():
+def sync_demo(db: Session = Depends(get_db)):
     try:
-        with connect(DB) as raw_conn:
-            all_ids, new_ids = sync_sample_emails(raw_conn)
-            if not all_ids:
-                return {"synced_emails": 0, "extracted_tasks": 0, "message": "无新邮件"}
+        all_ids, new_ids = sync_sample_emails(db)
+        if not all_ids:
+            return {"synced_emails": 0, "extracted_tasks": 0, "message": "无新邮件"}
 
-            created = 0
-            for eid in all_ids:
-                if _task_exists_for_email(raw_conn, eid):
-                    continue
-                email_row = raw_conn.execute(
-                    "SELECT id, message_id, sender, subject, body FROM emails WHERE id = ?",
-                    (eid,),
-                ).fetchone()
-                if not email_row:
-                    continue
-                email_dict = dict(email_row)
-                is_processed = bool(
-                    raw_conn.execute("SELECT is_processed FROM emails WHERE id = ?", (eid,)).fetchone()["is_processed"]
-                )
-                if is_processed:
-                    continue
-                try:
-                    task_result = do_extract_task(email_dict)
-                    if task_result.get("should_create_task"):
-                        _insert_task(raw_conn, eid, task_result)
-                        created += 1
-                except Exception:
-                    pass
-                raw_mark_processed(raw_conn, eid)
+        created = 0
+        failed = 0
+        for eid in all_ids:
+            # 已有任务则跳过
+            if db.query(Task).filter(Task.email_id == eid).first():
+                continue
 
-            return {
-                "synced_emails": len(new_ids),
-                "extracted_tasks": created,
-                "total_emails": len(all_ids),
+            email = db.query(Email).get(eid)
+            if not email:
+                continue
+            if email.is_processed:
+                continue
+
+            email_dict = {
+                "id": email.message_id or str(email.id),
+                "message_id": email.message_id or str(email.id),
+                "subject": email.subject,
+                "sender": email.sender,
+                "body": email.body,
+                "received_at": email.received_at,
+                "is_processed": bool(email.is_processed),
             }
+
+            try:
+                task_result = do_extract_task(email_dict)
+                if task_result.get("should_create_task"):
+                    task = Task(
+                        email_id=eid,
+                        task_name=task_result["task_name"],
+                        deadline=task_result["deadline"],
+                        priority=task_result["priority"],
+                        status=task_result["status"],
+                        category=task_result["category"],
+                        confidence=task_result.get("confidence", 0.0),
+                        confidence_source=task_result.get("confidence_source", "rules"),
+                    )
+                    db.add(task)
+                    created += 1
+            except Exception:
+                failed += 1
+                continue  # 提取失败的邮件不标记已处理，下次可重试
+
+            mark_email_processed(db, eid)
+
+        db.commit()
+
+        return {
+            "synced_emails": len(new_ids),
+            "extracted_tasks": created,
+            "failed": failed,
+            "total_emails": len(all_ids),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
+        db.rollback()
         raise HTTPException(500, f"同步失败：{str(e)}")
 
 
 # -- QQ 邮箱同步 --
 
 @router.post("/api/sync/qq")
-def sync_qq():
+def sync_qq(db: Session = Depends(get_db)):
     try:
-        with connect(DB) as raw_conn:
-            try:
-                all_ids, new_ids = sync_qq_recent_emails(raw_conn)
-            except ValueError as e:
-                raise HTTPException(400, str(e))
-            except RuntimeError as e:
-                raise HTTPException(502, str(e))
+        try:
+            all_ids, new_ids = sync_qq_recent_emails(db)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        except RuntimeError as e:
+            raise HTTPException(502, str(e))
 
-            if not all_ids:
-                return {"synced_emails": 0, "extracted_tasks": 0, "message": "无新邮件"}
+        if not all_ids:
+            return {"synced_emails": 0, "extracted_tasks": 0, "message": "无新邮件"}
 
-            created = 0
-            for eid in all_ids:
-                if _task_exists_for_email(raw_conn, eid):
-                    continue
-                email_row = raw_conn.execute(
-                    "SELECT id, message_id, sender, subject, body FROM emails WHERE id = ?",
-                    (eid,),
-                ).fetchone()
-                if not email_row:
-                    continue
-                email_dict = dict(email_row)
-                is_processed = bool(
-                    raw_conn.execute("SELECT is_processed FROM emails WHERE id = ?", (eid,)).fetchone()["is_processed"]
-                )
-                if is_processed:
-                    continue
-                try:
-                    task_result = do_extract_task(email_dict)
-                    if task_result.get("should_create_task"):
-                        _insert_task(raw_conn, eid, task_result)
-                        created += 1
-                except Exception:
-                    pass
-                raw_mark_processed(raw_conn, eid)
+        created = 0
+        failed = 0
+        for eid in all_ids:
+            # 已有任务则跳过
+            if db.query(Task).filter(Task.email_id == eid).first():
+                continue
 
-            return {
-                "synced_emails": len(new_ids),
-                "extracted_tasks": created,
-                "total_emails": len(all_ids),
+            email = db.query(Email).get(eid)
+            if not email:
+                continue
+            if email.is_processed:
+                continue
+
+            email_dict = {
+                "id": email.message_id or str(email.id),
+                "message_id": email.message_id or str(email.id),
+                "subject": email.subject,
+                "sender": email.sender,
+                "body": email.body,
+                "received_at": email.received_at,
+                "is_processed": bool(email.is_processed),
             }
+
+            try:
+                task_result = do_extract_task(email_dict)
+                if task_result.get("should_create_task"):
+                    task = Task(
+                        email_id=eid,
+                        task_name=task_result["task_name"],
+                        deadline=task_result["deadline"],
+                        priority=task_result["priority"],
+                        status=task_result["status"],
+                        category=task_result["category"],
+                        confidence=task_result.get("confidence", 0.0),
+                        confidence_source=task_result.get("confidence_source", "rules"),
+                    )
+                    db.add(task)
+                    created += 1
+            except Exception:
+                failed += 1
+                continue  # 提取失败的邮件不标记已处理，下次可重试
+
+            mark_email_processed(db, eid)
+
+        db.commit()
+
+        return {
+            "synced_emails": len(new_ids),
+            "extracted_tasks": created,
+            "failed": failed,
+            "total_emails": len(all_ids),
+        }
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         raise HTTPException(500, f"同步失败：{str(e)}")
 
 

@@ -1,9 +1,10 @@
-"""数据库连接和会话管理"""
+"""数据库连接和会话管理 — 项目中所有 DB 访问的统一入口"""
 from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
+# 数据库文件路径（项目根目录下的 imts_demo.db）
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "imts_demo.db"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 

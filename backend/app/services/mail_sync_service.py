@@ -8,23 +8,48 @@ import imaplib
 import re
 from datetime import timedelta
 
+from sqlalchemy.orm import Session
+
 from app.config import get_mail_config, validate_qq_mail_config
-from app.data.sample_emails import SAMPLE_EMAILS
+from app.models import Email, Task
+
+# ── 演示邮件数据（15 封，内联避免跨包依赖） ──
+
+SAMPLE_EMAILS = [
+    # -- 明确任务 (8 封) --
+    {"id":"demo-01","name":"周报提交","sender":"主管 manager@example.com","subject":"请明天下午前提交本周工作周报","body":"请明天下午18:00前提交本周工作周报，重点说明项目进展、风险和下周计划。","expected_should_create":True},
+    {"id":"demo-02","name":"客户故障","sender":"客户 support@example.com","subject":"系统登录异常需要今天处理","body":"客户反馈系统登录一直失败，麻烦今天下班前定位原因并回复处理结果。","expected_should_create":True},
+    {"id":"demo-03","name":"培训报名","sender":"培训中心 training@example.com","subject":"下周三前完成数据安全培训报名","body":"请在下周三前填写报名表并确认是否参加线下考试。","expected_should_create":True},
+    {"id":"demo-04","name":"项目例会","sender":"项目秘书 secretary@example.com","subject":"本周五项目例会材料准备","body":"请本周五15:00参加项目例会，并提前准备各自模块的进展说明。","expected_should_create":True},
+    {"id":"demo-05","name":"合同确认","sender":"法务 legal@example.com","subject":"合同条款确认","body":"请明天上午前确认附件合同中的付款条款，如有问题请直接批注后回复。","expected_should_create":True},
+    {"id":"demo-06","name":"客户回访","sender":"销售总监 sales@example.com","subject":"重点客户回访安排","body":"麻烦尽快联系A公司客户，确认试用反馈并更新CRM记录。","expected_should_create":True},
+    {"id":"demo-07","name":"论文修改","sender":"导师 li@lab.edu","subject":"论文审稿意见修改","body":"请在下周内完成第二轮审稿意见修改，重点补充实验对照组和消融分析。","expected_should_create":True},
+    {"id":"demo-08","name":"账单确认","sender":"财务 finance@example.com","subject":"账单已生成请确认付款信息","body":"本月账单已生成，请今天确认付款信息是否正确。如有问题请直接回复。","expected_should_create":True},
+    # -- 明确非任务 (5 封) --
+    {"id":"demo-09","name":"验证码","sender":"安全中心 security@example.com","subject":"登录验证码","body":"你的验证码是384921，5分钟内有效。若非本人操作请忽略。","expected_should_create":False},
+    {"id":"demo-10","name":"系统维护","sender":"IT运维 it@example.com","subject":"系统维护通知","body":"系统将在周六凌晨进行维护，期间可能短暂不可用。本邮件仅为通知无需处理。","expected_should_create":False},
+    {"id":"demo-11","name":"游戏活动","sender":"游戏活动 promo@example.com","subject":"限时活动登录领取补给箱","body":"后天前登录游戏可领取补给箱。该奖励为限时活动福利。","expected_should_create":False},
+    {"id":"demo-12","name":"自动回复","sender":"auto-reply@example.com","subject":"自动回复我已收到你的邮件","body":"我目前正在休假，回来后会尽快处理。本邮件为自动回复。","expected_should_create":False},
+    {"id":"demo-13","name":"广告促销","sender":"优惠 newsletter@shop.example.com","subject":"限时优惠会员专享折扣","body":"本周商城促销活动开启，点击链接领取优惠券。本邮件为广告订阅内容。","expected_should_create":False},
+    # -- 陷阱 (2 封，规则易误判) --
+    {"id":"demo-14","name":"转发他人任务","sender":"同事 colleague@example.com","subject":"Fwd: 会议纪要摘录","body":"纪要里提到市场部需要在明天前提交活动预算。这个事项由市场部负责，我只是转发给你了解背景。","expected_should_create":False,"expected_rule_may_fail":True},
+    {"id":"demo-15","name":"条件安全提醒","sender":"安全中心 security@example.com","subject":"账户安全提醒","body":"如果不是你本人操作请尽快修改密码；如果是你本人操作可以忽略本提醒。","expected_should_create":False,"expected_rule_may_fail":True},
+]
 
 
-def sync_sample_emails(conn):
+def sync_sample_emails(db: Session):
     """返回 (all_email_ids, new_email_ids)"""
     all_ids = []
     new_ids = []
     for email in SAMPLE_EMAILS:
-        result = save_email(conn, email)
+        result = save_email(db, email)
         all_ids.append(result["email_id"])
         if result["is_new"]:
             new_ids.append(result["email_id"])
     return all_ids, new_ids
 
 
-def sync_qq_recent_emails(conn):
+def sync_qq_recent_emails(db: Session):
     """返回 (all_email_ids, new_email_ids)"""
     config = get_mail_config()
     validate_qq_mail_config(config)
@@ -59,7 +84,7 @@ def sync_qq_recent_emails(conn):
                 continue
             mail_id = item[0].decode("utf-8", errors="ignore").split()[0] if isinstance(item[0], bytes) else str(item[0]).split()[0]
             email_data = _parse_email(raw_message, fallback_id=mail_id)
-            result = save_email(conn, email_data)
+            result = save_email(db, email_data)
             all_ids.append(result["email_id"])
             if result["is_new"]:
                 new_ids.append(result["email_id"])
@@ -67,67 +92,39 @@ def sync_qq_recent_emails(conn):
     return all_ids, new_ids
 
 
-def list_emails(conn):
-    rows = conn.execute(
-        """
-        SELECT
-            emails.*,
-            tasks.id AS task_id,
-            tasks.task_name,
-            tasks.status AS task_status
-        FROM emails
-        LEFT JOIN tasks ON tasks.email_id = emails.id
-        WHERE
-            emails.message_id = ''
-            OR emails.id = (
-                SELECT MIN(e2.id)
-                FROM emails e2
-                WHERE e2.message_id = emails.message_id
-            )
-        ORDER BY emails.id DESC
-        """
-    ).fetchall()
-    return [dict(row) for row in rows]
 
-
-def save_email(conn, email):
-    """保存邮件，返回 {"email_id": int, "is_new": bool}"""
+def save_email(db: Session, email: dict):
+    """保存邮件（通过 message_id 去重），返回 {"email_id": int, "is_new": bool}"""
     message_id = email.get("id") or email.get("message_id") or ""
+
+    # 去重：message_id 非空时查找已有记录
     if message_id:
-        existing = conn.execute(
-            "SELECT id FROM emails WHERE message_id = ? ORDER BY id LIMIT 1",
-            (message_id,),
-        ).fetchone()
+        existing = db.query(Email).filter(Email.message_id == message_id).first()
         if existing:
-            conn.execute(
-                """
-                UPDATE emails
-                SET subject = ?, sender = ?, body = ?
-                WHERE id = ?
-                """,
-                (email["subject"], email["sender"], email["body"], existing["id"]),
-            )
-            return {"email_id": existing["id"], "is_new": False}
+            existing.subject = email["subject"]
+            existing.sender = email["sender"]
+            existing.body = email["body"]
+            db.flush()
+            return {"email_id": existing.id, "is_new": False}
 
-    cursor = conn.execute(
-        """
-        INSERT INTO emails (message_id, subject, sender, body, received_at, is_processed)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            message_id,
-            email["subject"],
-            email["sender"],
-            email["body"],
-            email.get("received_at") or datetime.now().isoformat(timespec="seconds"),
-            0,
-        ),
+    new_email = Email(
+        message_id=message_id,
+        subject=email["subject"],
+        sender=email["sender"],
+        body=email["body"],
+        received_at=email.get("received_at") or datetime.now().isoformat(timespec="seconds"),
+        is_processed=0,
     )
-    return {"email_id": cursor.lastrowid, "is_new": True}
+    db.add(new_email)
+    db.flush()
+    return {"email_id": new_email.id, "is_new": True}
 
 
-def mark_email_processed(conn, email_id):
-    conn.execute("UPDATE emails SET is_processed = 1 WHERE id = ?", (email_id,))
+def mark_email_processed(db: Session, email_id: int):
+    email = db.query(Email).get(email_id)
+    if email:
+        email.is_processed = 1
+        db.flush()
 
 
 def _first_message_bytes(msg_data):
