@@ -38,24 +38,21 @@ SAMPLE_EMAILS = [
 
 
 def sync_sample_emails(db: Session):
-    """返回 (all_email_ids, new_email_ids)"""
-    all_ids = []
+    """同步演示邮件，返回新导入的邮件 ID 列表"""
     new_ids = []
     for email in SAMPLE_EMAILS:
         result = save_email(db, email)
-        all_ids.append(result["email_id"])
         if result["is_new"]:
             new_ids.append(result["email_id"])
-    return all_ids, new_ids
+    return new_ids
 
 
 def sync_qq_recent_emails(db: Session):
-    """返回 (all_email_ids, new_email_ids)"""
+    """同步 QQ 近期邮件，返回新导入的邮件 ID 列表"""
     config = get_mail_config()
     validate_qq_mail_config(config)
 
     since_date = (datetime.now() - timedelta(days=config["lookback_days"])).strftime("%d-%b-%Y")
-    all_ids = []
     new_ids = []
 
     with imaplib.IMAP4_SSL(config["host"], config["port"]) as client:
@@ -68,7 +65,7 @@ def sync_qq_recent_emails(db: Session):
         mail_ids = data[0].split()
         batch = mail_ids[-config["max_fetch"] :]
         if not batch:
-            return [], []
+            return []
 
         # 批量 fetch：一次 IMAP 请求拉多封
         fetch_set = ",".join(m.decode("utf-8", errors="ignore") for m in reversed(batch))
@@ -85,11 +82,10 @@ def sync_qq_recent_emails(db: Session):
             mail_id = item[0].decode("utf-8", errors="ignore").split()[0] if isinstance(item[0], bytes) else str(item[0]).split()[0]
             email_data = _parse_email(raw_message, fallback_id=mail_id)
             result = save_email(db, email_data)
-            all_ids.append(result["email_id"])
             if result["is_new"]:
                 new_ids.append(result["email_id"])
 
-    return all_ids, new_ids
+    return new_ids
 
 
 

@@ -1,6 +1,7 @@
 """
 IMTS FastAPI 应用入口
 """
+import os
 import sys
 from pathlib import Path
 
@@ -29,10 +30,13 @@ load_dotenv(ENV_PATH)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用启动：自动建表（无 .db 文件时创建，已有表则跳过）"""
-    from app.database import engine, Base
-    from app.models import Email, Task  # noqa: F401  确保模型注册到 Base.metadata
-    Base.metadata.create_all(bind=engine)
+    """应用启动：自动执行数据库迁移（通过 Alembic）"""
+    from alembic.config import Config as AlembicConfig
+    from alembic import command
+    alembic_cfg = AlembicConfig(BACKEND_DIR / "alembic.ini")
+    # 防止 alembic 读取自己的 argv（与 uvicorn 冲突）
+    alembic_cfg.cmd_opts = type("_", (), {"x": None})()
+    command.upgrade(alembic_cfg, "head")
     yield
 
 
@@ -43,9 +47,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+allow_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

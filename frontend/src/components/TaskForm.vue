@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import dayjs from 'dayjs'
 import type { Task, CreateTaskPayload } from '../stores/tasks'
 
@@ -65,7 +65,7 @@ const emit = defineEmits<{
   submit: [data: CreateTaskPayload]
 }>()
 
-const isEdit = !!props.task
+const isEdit = computed(() => !!props.task)
 
 const form = reactive({
   task_name: '',

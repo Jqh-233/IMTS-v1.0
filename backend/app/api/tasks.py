@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Task
+from app.models import Email, Task
 from app.schemas import TaskCreate, TaskOut, TaskStatusUpdate, TaskUpdate
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -101,7 +101,13 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = db.query(Task).get(task_id)
     if not task:
         raise HTTPException(404, "任务不存在")
+    email_id = task.email_id
     db.delete(task)
+    # 重置邮件状态，允许用户在邮件列表重新提取
+    if email_id:
+        email = db.query(Email).get(email_id)
+        if email:
+            email.is_processed = 0
     db.commit()
 
 

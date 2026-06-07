@@ -104,3 +104,22 @@ SQLite 适合本地演示和单用户使用。部署升级建议 PostgreSQL 或 
 - 日志持久化到文件 + 按日期轮转
 - 结构化 JSON 日志（便于 ELK/Loki 等日志平台接入）
 - 请求级别 trace ID（便于追踪单次同步的完整调用链）
+
+## 11. 2026-06-07 代码审计遗留问题
+
+以下问题来自全面代码审计（9 角度查找），已确认但暂缓修复：
+
+| # | 问题 | 严重度 | 说明 |
+|---|------|--------|------|
+| 1 | 数据库索引缺失 | 中 | tasks 表缺少 deadline+status、priority+status 复合索引，大量任务时全表扫描 |
+| 2 | N+1 查询 | 中 | list_emails 循环内逐行查 Task，应改用 joinedload |
+| 3 | email_dict 重复 5 处 | 低 | 同一个 ORM→dict 转换在 emails.py 中重复定义，应提取为 Email.to_extraction_dict() |
+| 4 | FK pragma 未启用 | 中 | SQLite 默认忽略外键，删邮件后 Task 变成孤儿行 |
+| 5 | forceTask 缺 task_status | 低 | store 中 forceTask 未设置 task_status: 'pending'，与 extractTask 不一致 |
+| 6 | 规则引擎置信度 0.0 | 低 | 规则提取的任务一律 confidence=0.0，触发低置信度黄色预警，实际应区分"不确定"和"确定" |
+| 7 | 日志架构优化 | 低 | per-module handler 创建反模式，应改为根 logger 统一 handler + 传播 |
+| 8 | emailBody 竞态条件 | 低 | EmailDrawer 中 emailBody 是单 ref，快速切换邮件时正文可能覆盖 |
+| 9 | allow_email_content 默认值不一致 | 低 | config.py 默认 False，PUT API 的 Pydantic 模型默认 True |
+| 10 | Dead sort 参数 | 低 | tasks API 接受 sort 参数但从未使用，查询始终按 deadline 排序 |
+| 11 | 硬编码 "DeepSeek" 错误信息 | 低 | llm_client.py 错误消息写死 "DeepSeek"，用其他 API 时会误导用户 |
+| 12 | 脆弱 provider 检测 | 低 | llm_client.py 用 URL 子串匹配判断是否 DeepSeek，代理场景误判 |

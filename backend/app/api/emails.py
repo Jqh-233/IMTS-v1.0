@@ -7,7 +7,7 @@ from app.database import get_db
 from app.logging_config import get_logger
 from app.models import Email, Task
 from app.schemas import EmailListOut, EmailOut, TaskOut
-from app.services.mail_sync_service import mark_email_processed, sync_qq_recent_emails, sync_sample_emails
+from app.services.mail_sync_service import sync_qq_recent_emails, sync_sample_emails
 
 logger = get_logger(__name__)
 
@@ -47,21 +47,19 @@ def get_email(email_id: int, db: Session = Depends(get_db)):
 @router.post("/api/sync/demo")
 def sync_demo(db: Session = Depends(get_db)):
     try:
-        all_ids, new_ids = sync_sample_emails(db)
-        if not all_ids:
+        new_ids = sync_sample_emails(db)
+        if not new_ids:
             return {"synced_emails": 0, "extracted_tasks": 0, "message": "无新邮件"}
 
         created = 0
         failed = 0
-        for eid in all_ids:
-            # 已有任务则跳过
+        for eid in new_ids:
+            # 已有任务则跳过（可能被手动操作关联了）
             if db.query(Task).filter(Task.email_id == eid).first():
                 continue
 
             email = db.query(Email).get(eid)
             if not email:
-                continue
-            if email.is_processed:
                 continue
 
             email_dict = {
@@ -89,12 +87,11 @@ def sync_demo(db: Session = Depends(get_db)):
                     )
                     db.add(task)
                     created += 1
+                email.is_processed = 1  # 评估完成
             except Exception:
                 logger.warning("提取演示邮件任务失败 email_id=%d", eid, exc_info=True)
                 failed += 1
-                continue  # 提取失败的邮件不标记已处理，下次可重试
-
-            mark_email_processed(db, eid)
+                continue  # 不标记 is_processed，用户可在邮件列表手动重试
 
         db.commit()
 
@@ -102,7 +99,6 @@ def sync_demo(db: Session = Depends(get_db)):
             "synced_emails": len(new_ids),
             "extracted_tasks": created,
             "failed": failed,
-            "total_emails": len(all_ids),
         }
     except HTTPException:
         raise
@@ -118,26 +114,24 @@ def sync_demo(db: Session = Depends(get_db)):
 def sync_qq(db: Session = Depends(get_db)):
     try:
         try:
-            all_ids, new_ids = sync_qq_recent_emails(db)
+            new_ids = sync_qq_recent_emails(db)
         except ValueError as e:
             raise HTTPException(400, str(e))
         except RuntimeError as e:
             raise HTTPException(502, str(e))
 
-        if not all_ids:
+        if not new_ids:
             return {"synced_emails": 0, "extracted_tasks": 0, "message": "无新邮件"}
 
         created = 0
         failed = 0
-        for eid in all_ids:
-            # 已有任务则跳过
+        for eid in new_ids:
+            # 已有任务则跳过（可能被手动操作关联了）
             if db.query(Task).filter(Task.email_id == eid).first():
                 continue
 
             email = db.query(Email).get(eid)
             if not email:
-                continue
-            if email.is_processed:
                 continue
 
             email_dict = {
@@ -165,12 +159,11 @@ def sync_qq(db: Session = Depends(get_db)):
                     )
                     db.add(task)
                     created += 1
+                email.is_processed = 1  # 评估完成
             except Exception:
                 logger.warning("提取QQ邮件任务失败 email_id=%d", eid, exc_info=True)
                 failed += 1
-                continue
-
-            mark_email_processed(db, eid)
+                continue  # 不标记 is_processed，用户可在邮件列表手动重试
 
         db.commit()
 
@@ -178,7 +171,6 @@ def sync_qq(db: Session = Depends(get_db)):
             "synced_emails": len(new_ids),
             "extracted_tasks": created,
             "failed": failed,
-            "total_emails": len(all_ids),
         }
     except HTTPException:
         raise

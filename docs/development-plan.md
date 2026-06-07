@@ -168,4 +168,42 @@
 
 **第六步包含**：数据库层统一（raw sqlite3→纯 ORM）、异常处理+日志系统、前端修复（dayjs/loading/as any/Store 越界）、pytest 测试基础设施。
 
+---
+
+## 第六步（补充）：Bug 修复与基础设施加固
+
+（完成于 2026-06-07）
+
+### 6.7 测试数据库隔离
+- [x] `conftest.py` 重写：内存 SQLite + StaticPool + dependency_overrides，与生产库完全隔离
+
+### 6.8 Alembic 数据库迁移
+- [x] 新增 `alembic` 依赖
+- [x] `alembic init` + `env.py` 配置（自动检测模型变更）
+- [x] 初始迁移脚本（基于当前 schema）
+- [x] `main.py` lifespan 改为 `alembic upgrade head`（替代 create_all）
+
+### 6.9 同步逻辑修正
+- [x] `mail_sync_service.py`：sync 函数只返回 new_ids（不再返回 all_ids）
+- [x] `emails.py`：sync 端点只遍历新邮件，删除 is_processed 过滤 + mark_email_processed
+- [x] `tasks.py`：delete_task 重置关联邮件 is_processed=0（允许重新提取）
+
+### 6.10 前端 Bug 修复
+- [x] `TaskForm.vue`：isEdit 改为 computed（修复编辑弹窗始终显示"创建任务"的 Bug）
+
+### 6.11 CORS 配置修正
+- [x] 从环境变量 CORS_ORIGINS 读取允许来源（默认 localhost:5173）
+- [x] `.env.example` 新增 CORS_ORIGINS 配置项
+
+## 当前状态
+
+| 步骤 | 状态 | 完成时间 |
+|------|------|---------|
+| 0-4 基础设施→联调 | 完成 | 2026-05-30 |
+| 5.1-5.6 功能优化 | 完成 | 2026-05-31 |
+| 6 架构统一与质量加固 | 完成 | 2026-06-07 |
+| 6.7-6.11 Bug 修复 | 完成 | 2026-06-07 |
+
 > 下一步计划（AI 引擎优化）需求分析见 [docs/ai-optimization-requirements.md](ai-optimization-requirements.md)，待计划成熟后更新本文档。
+
+> 代码审计遗留问题见 [FUTURE_OPTIMIZATION.md](../FUTURE_OPTIMIZATION.md) 第 11 节。
