@@ -82,3 +82,25 @@ SQLite 适合本地演示和单用户使用。部署升级建议 PostgreSQL 或 
 - 使用 VBS 隐藏命令行窗口。
 - 使用 Electron / Tauri 做桌面壳。
 （PyInstaller 已尝试，与项目架构不兼容，放弃。）
+
+## 9. 测试覆盖扩展
+
+已有基础：`pytest`（10 个任务 CRUD 用例），`vue-tsc` + `vite build`（前端类型检查）。
+
+可扩展方向：
+
+- AI 引擎测试：用 `test_emails_100.py` 的 100 封标注邮件验证规则引擎准确率
+- 邮件同步测试：mock IMAP 连接，验证 MIME 解析和去重逻辑
+- 前端组件测试：vitest + @vue/test-utils 覆盖 Pinia store
+- 端到端测试：Playwright 覆盖核心用户流程（配置→同步→看板→状态流转）
+
+## 10. 日志系统增强
+
+已有基础：`logging_config.py`（模块级 logger，stdout 输出）。
+
+可扩展方向：
+
+- 日志级别按模块可配置（如 ai 模块 DEBUG，api 模块 INFO）
+- 日志持久化到文件 + 按日期轮转
+- 结构化 JSON 日志（便于 ELK/Loki 等日志平台接入）
+- 请求级别 trace ID（便于追踪单次同步的完整调用链）

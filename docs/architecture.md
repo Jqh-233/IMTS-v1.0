@@ -26,7 +26,7 @@ FastAPI + Vue 3 前后端分离架构：
 | 语言 | Python 3.10+ | 复用现有 AI 引擎和邮件服务代码 |
 | 框架 | FastAPI | 高性能、自动 OpenAPI 文档、类型安全 |
 | ORM | SQLAlchemy 2.0 | 成熟、支持 SQLite 和 PostgreSQL 切换 |
-| 异步 | asyncio + aiosqlite | 邮件同步和 LLM 调用适合异步处理 |
+| 异步 | asyncio | 邮件同步和 LLM 调用适合异步处理（当前 SQLite 同步模式已满足需求） |
 | 任务队列 | BackgroundTasks（内置） | 简单够用，远期可换 Celery |
 
 ### 前端
@@ -79,10 +79,11 @@ GET    /api/stats             # 获取统计数据
 
 ## 数据库
 
-当前使用 SQLite + SQLAlchemy ORM，远期可迁移 PostgreSQL：
+统一使用 SQLite + SQLAlchemy ORM（已消除早期的 raw sqlite3 双轨制），远期可迁移 PostgreSQL：
 
 - `emails` 表：原始邮件
-- `tasks` 表：提取的任务
+- `tasks` 表：提取的任务（外键关联 emails）
+- 建表：`Base.metadata.create_all()` 在 lifespan 启动事件中自动执行
 
 ## 目录结构
 
@@ -90,22 +91,24 @@ GET    /api/stats             # 获取统计数据
 IMTS-v1.0/
 ├── backend/               # FastAPI 后端
 │   ├── app/
-│   │   ├── main.py        # 应用入口 + 静态文件服务
-│   │   ├── database.py    # SQLAlchemy 连接
-│   │   ├── config.py      # 配置管理
-│   │   ├── api/           # API 路由
-│   │   ├── models/        # SQLAlchemy 模型
-│   │   ├── schemas/       # Pydantic 模式
-│   │   ├── ai/            # AI 引擎
-│   │   ├── services/      # 业务逻辑
-│   │   └── data/          # 数据层
+│   │   ├── main.py        # 应用入口 + lifespan 建表 + SPA 托管
+│   │   ├── database.py    # SQLAlchemy 引擎与会话（DB 统一入口）
+│   │   ├── config.py      # 配置管理（.env 读写）
+│   │   ├── logging_config.py # 日志系统
+│   │   ├── api/           # API 路由（tasks / emails / config）
+│   │   ├── models/        # SQLAlchemy 模型（Email, Task）
+│   │   ├── schemas/       # Pydantic 校验（枚举、请求/响应体）
+│   │   ├── ai/            # AI 引擎（提取入口、LLM 客户端、Prompt、校验）
+│   │   ├── services/      # 邮件同步服务（IMAP + MIME + 演示邮件）
+│   │   ├── data/          # 测试邮件数据集
+│   │   └── tests/         # pytest 自动化测试
 │   └── requirements.txt
 ├── frontend/              # Vue 3 前端
 │   └── src/
-│       ├── components/    # 公共组件
-│       ├── views/         # 页面
-│       ├── api/           # API 请求封装
-│       ├── stores/        # Pinia 状态
+│       ├── components/    # TaskCard / TaskForm / EmailDrawer
+│       ├── views/         # Board / Settings
+│       ├── api/           # Axios 请求封装
+│       ├── stores/        # Pinia 状态（tasks / emails）
 │       ├── router/        # 路由配置
 │       ├── App.vue
 │       └── main.ts

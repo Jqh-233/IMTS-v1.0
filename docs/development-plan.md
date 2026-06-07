@@ -13,7 +13,7 @@
 ### 0.1 初始化后端项目
 
 - [x] 创建 `backend/` 目录
-- [x] 编写 `backend/requirements.txt`（FastAPI、uvicorn、sqlalchemy、aiosqlite）
+- [x] 编写 `backend/requirements.txt`（FastAPI、uvicorn、sqlalchemy）
 - [x] 搭建 FastAPI 最小骨架：`backend/app/main.py`（/health 端点）
 - [x] 配置 CORS 中间件（允许前端开发服务器 localhost:5173）
 - [x] 用 uvicorn 启动验证：`curl http://localhost:8501/health` 返回 200
@@ -162,7 +162,10 @@
 
 | 步骤 | 状态 | 完成时间 |
 |------|------|---------|
-| 0-4 基础设施->联调 | 完成 | 2026-05-30 |
+| 0-4 基础设施→联调 | 完成 | 2026-05-30 |
 | 5.1-5.6 功能优化 | 完成 | 2026-05-31 |
+| 6 架构统一与质量加固 | 完成 | 2026-06-07 |
+
+**第六步包含**：数据库层统一（raw sqlite3→纯 ORM）、异常处理+日志系统、前端修复（dayjs/loading/as any/Store 越界）、pytest 测试基础设施。
 
 > 下一步计划（AI 引擎优化）需求分析见 [docs/ai-optimization-requirements.md](ai-optimization-requirements.md)，待计划成熟后更新本文档。

@@ -26,7 +26,7 @@ IMTS（Intelligent Mail Task Synergy System / 智能邮件任务协同系统）�
 │     tasks / emails / config / sync          │
 ├─────────────────────────────────────────────┤
 │               服务层                         │
-│  mail_sync_service  │  task_service         │
+│          mail_sync_service                  │
 ├─────────────────────────────────────────────┤
 │               AI 引擎                        │
 │  task_extractor → llm_client (DeepSeek)     │
@@ -34,7 +34,7 @@ IMTS（Intelligent Mail Task Synergy System / 智能邮件任务协同系统）�
 │  prompt_engine  │  task_schema              │
 ├─────────────────────────────────────────────┤
 │              数据层                          │
-│    SQLAlchemy ORM → SQLite                  │
+│    SQLAlchemy ORM → SQLite（统一访问）       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -63,9 +63,10 @@ IMTS-v1.0/
 ├── imts_demo.db                # SQLite 数据库（运行时生成）
 ├── backend/                    # FastAPI 后端
 │   └── app/
-│       ├── main.py             # 应用入口 + 静态文件服务
-│       ├── database.py         # SQLAlchemy 连接与会话
+│       ├── main.py             # 应用入口 + lifespan 建表 + 静态文件
+│       ├── database.py         # SQLAlchemy 引擎与会话（DB 统一入口）
 │       ├── config.py           # .env 配置读写
+│       ├── logging_config.py   # 日志系统（模块级 logger 工厂）
 │       ├── api/                # REST API 路由
 │       │   ├── tasks.py        # 任务 CRUD + 统计
 │       │   ├── emails.py       # 邮件列表 + 同步 + 提取
@@ -83,11 +84,12 @@ IMTS-v1.0/
 │       │   ├── task_extractor.py# 任务提取入口 + 规则引擎
 │       │   └── task_schema.py  # LLM 输出校验与规范化
 │       ├── services/           # 业务服务
-│       │   ├── mail_sync_service.py # 邮件同步（IMAP + MIME）
-│       │   └── task_service.py      # 任务业务逻辑
-│       └── data/               # 数据层
-│           ├── database.py     # SQLite 初始化与连接
-│           └── sample_emails.py# 34 封测试邮件
+│       │   └── mail_sync_service.py # IMAP 同步 + 演示邮件数据
+│       ├── data/               # 测试数据
+│       │   └── test_emails_100.py   # 100 封评估邮件
+│       └── tests/              # 自动化测试
+│           ├── conftest.py     # pytest fixtures
+│           └── test_task_crud.py    # 任务 CRUD 测试（10 个用例）
 ├── frontend/                   # Vue 3 前端
 │   └── src/
 │       ├── App.vue             # 全局 Layout + 导航
@@ -96,8 +98,11 @@ IMTS-v1.0/
 │       │   └── Settings.vue    # 邮箱 + LLM 配置
 │       ├── components/
 │       │   ├── TaskCard.vue    # 任务卡片
-│       │   └── TaskForm.vue    # 创建/编辑弹窗
-│       ├── stores/tasks.ts     # Pinia 任务状态
+│       │   ├── TaskForm.vue    # 创建/编辑弹窗
+│       │   └── EmailDrawer.vue # 邮件抽屉
+│       ├── stores/
+│       │   ├── tasks.ts        # Pinia 任务状态
+│       │   └── emails.ts       # Pinia 邮件状态
 │       ├── router/index.ts     # Vue Router 路由
 │       └── api/index.ts        # Axios 请求封装
 ├── docs/                       # 项目文档
@@ -141,9 +146,10 @@ QQ 邮箱 ──IMAP──→ mail_sync_service ──→ emails 表
 
 ## 关键数据
 
-- API 端点：20 个 | 前端组件：6 个
-- 测试邮件：100 封（办公/科研真实场景）+ 15 封演示邮件
-- 开发周期：2 天（Streamlit 单体 → FastAPI + Vue 3 重构 + 云部署）
+- API 端点：19 个 | 前端组件：3 个（TaskCard / TaskForm / EmailDrawer）
+- 后端测试：10 个 pytest 用例（任务 CRUD 全覆盖）
+- 测试邮件：100 封评估邮件 + 15 封演示邮件（内联在 mail_sync_service.py）
+- 开发周期：2 天（Streamlit → FastAPI + Vue 3）+ 1 天（架构统一与质量加固）
 
 ## 快速开始
 
