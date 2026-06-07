@@ -141,16 +141,13 @@ async function handleExtract(emailId: number) {
 async function handleForceTask(emailId: number) {
   forcingId.value = emailId
   try {
-    const res = await api.post(`/emails/${emailId}/force-task`)
-    if (res.data.created) {
+    const result = await store.forceTask(emailId)
+    if (result.created) {
       message.success('任务已手动加入看板')
-      store.emails = store.emails.map(e =>
-        e.id === emailId ? { ...e, is_processed: true, task_id: res.data.task.id, task_name: res.data.task.task_name } : e
-      )
       await taskStore.fetchTasks()
       await taskStore.fetchStats()
     } else {
-      message.info(res.data.message || '该邮件已有任务')
+      message.info(result.message || '该邮件已有任务')
     }
   } catch (e: any) {
     message.error(e.response?.data?.detail || '操作失败')

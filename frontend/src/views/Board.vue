@@ -106,6 +106,7 @@
     <TaskForm
       :visible="showCreate || !!editingTask"
       :task="editingTask"
+      :loading="submitting"
       @close="showCreate = false; editingTask = null"
       @submit="handleSubmit"
     />
@@ -115,7 +116,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useTaskStore } from '../stores/tasks'
-import type { Task } from '../stores/tasks'
+import type { Task, CreateTaskPayload } from '../stores/tasks'
 import { useEmailStore } from '../stores/emails'
 import TaskCard from '../components/TaskCard.vue'
 import TaskForm from '../components/TaskForm.vue'
@@ -127,6 +128,7 @@ const showCreate = ref(false)
 const editingTask = ref<Task | null>(null)
 const drawerVisible = ref(false)
 const highlightEmailId = ref<number | null>(null)
+const submitting = ref(false)
 
 const stats = store.stats
 
@@ -134,13 +136,18 @@ function openEdit(task: Task) {
   editingTask.value = task
 }
 
-async function handleSubmit(data: Record<string, unknown>) {
-  if (editingTask.value) {
-    await store.updateTask(editingTask.value.id, data)
-    editingTask.value = null
-  } else {
-    await store.createTask(data as any)
-    showCreate.value = false
+async function handleSubmit(data: CreateTaskPayload) {
+  submitting.value = true
+  try {
+    if (editingTask.value) {
+      await store.updateTask(editingTask.value.id, data)
+      editingTask.value = null
+    } else {
+      await store.createTask(data)
+      showCreate.value = false
+    }
+  } finally {
+    submitting.value = false
   }
 }
 

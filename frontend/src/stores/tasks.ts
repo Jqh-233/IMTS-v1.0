@@ -17,6 +17,16 @@ export interface Task {
   email_sender?: string | null
 }
 
+export interface CreateTaskPayload {
+  task_name: string
+  deadline: string
+  priority: string
+  category: string
+  status: string
+}
+
+export type UpdateTaskPayload = Partial<CreateTaskPayload>
+
 export interface Stats {
   total: number
   high_priority: number
@@ -66,7 +76,7 @@ export const useTaskStore = defineStore('tasks', () => {
     return res.data
   }
 
-  async function updateTask(id: number, data: Record<string, unknown>) {
+  async function updateTask(id: number, data: UpdateTaskPayload) {
     const res = await api.put(`/tasks/${id}`, data)
     const idx = tasks.value.findIndex(t => t.id === id)
     if (idx >= 0) tasks.value[idx] = res.data

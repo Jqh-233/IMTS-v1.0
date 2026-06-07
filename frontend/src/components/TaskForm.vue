@@ -2,7 +2,7 @@
   <a-modal
     :open="visible"
     :title="isEdit ? '编辑任务' : '创建任务'"
-    :confirm-loading="submitting"
+    :confirm-loading="props.loading"
     @ok="handleOk"
     @cancel="$emit('close')"
   >
@@ -50,18 +50,19 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import dayjs from 'dayjs'
-import type { Task } from '../stores/tasks'
+import type { Task, CreateTaskPayload } from '../stores/tasks'
 
 const props = defineProps<{
   visible: boolean
   task: Task | null
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
-  submit: [data: Record<string, unknown>]
+  submit: [data: CreateTaskPayload]
 }>()
 
 const isEdit = !!props.task
@@ -69,12 +70,10 @@ const isEdit = !!props.task
 const form = reactive({
   task_name: '',
   _deadline: undefined as dayjs.Dayjs | undefined,
-  priority: 'medium',
-  category: '通用任务',
-  status: 'pending',
+  priority: 'medium' as CreateTaskPayload['priority'],
+  category: '通用任务' as CreateTaskPayload['category'],
+  status: 'pending' as CreateTaskPayload['status'],
 })
-
-const submitting = ref(false)
 
 watch(() => props.visible, (v) => {
   if (v && props.task) {
@@ -96,21 +95,16 @@ function disabledDate(current: dayjs.Dayjs) {
   return current && current < dayjs().startOf('day')
 }
 
-async function handleOk() {
+function handleOk() {
   if (!form.task_name.trim() || !form._deadline) {
     return
   }
-  submitting.value = true
-  try {
-    emit('submit', {
-      task_name: form.task_name.trim(),
-      deadline: form._deadline.format('YYYY-MM-DD'),
-      priority: form.priority,
-      category: form.category,
-      status: form.status,
-    })
-  } finally {
-    submitting.value = false
-  }
+  emit('submit', {
+    task_name: form.task_name.trim(),
+    deadline: form._deadline.format('YYYY-MM-DD'),
+    priority: form.priority,
+    category: form.category,
+    status: form.status,
+  })
 }
 </script>

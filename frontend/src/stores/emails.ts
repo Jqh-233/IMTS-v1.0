@@ -33,12 +33,27 @@ export const useEmailStore = defineStore('emails', () => {
     const idx = emails.value.findIndex(e => e.id === emailId)
     if (idx >= 0) {
       const data = res.data
-      emails.value[idx].is_processed = true
+      emails.value[idx] = { ...emails.value[idx], is_processed: true }
       if (data.extracted) {
-        emails.value[idx].task_id = data.task.id
-        emails.value[idx].task_name = data.task.task_name
-        emails.value[idx].task_status = 'pending'
+        emails.value[idx] = {
+          ...emails.value[idx],
+          task_id: data.task.id,
+          task_name: data.task.task_name,
+          task_status: 'pending',
+        }
       }
+    }
+    return res.data
+  }
+
+  async function forceTask(emailId: number) {
+    const res = await api.post(`/emails/${emailId}/force-task`)
+    if (res.data.created) {
+      emails.value = emails.value.map(e =>
+        e.id === emailId
+          ? { ...e, is_processed: true, task_id: res.data.task.id, task_name: res.data.task.task_name }
+          : e
+      )
     }
     return res.data
   }
@@ -47,5 +62,5 @@ export const useEmailStore = defineStore('emails', () => {
     return emails.value.find(e => e.id === id) || null
   }
 
-  return { emails, loading, fetchEmails, extractTask, getEmailById }
+  return { emails, loading, fetchEmails, extractTask, forceTask, getEmailById }
 })
