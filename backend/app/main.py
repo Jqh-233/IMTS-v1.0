@@ -8,6 +8,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,16 +26,22 @@ PROJECT_ROOT = BACKEND_DIR.parent
 ENV_PATH = PROJECT_ROOT / ".env"
 load_dotenv(ENV_PATH)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用启动：自动建表（无 .db 文件时创建，已有表则跳过）"""
+    from app.database import engine, Base
+    from app.models import Email, Task  # noqa: F401  确保模型注册到 Base.metadata
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title="IMTS API",
     description="Intelligent Mail Task Synergy System",
     version="0.1.0",
+    lifespan=lifespan,
 )
-
-# 自动建表（首次运行无 .db 文件时创建，已有表则跳过）
-from app.database import engine, Base
-from app.models import Email, Task  # noqa: F401  确保模型注册到 Base.metadata
-Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
