@@ -97,7 +97,7 @@ def test_llm_connection():
         detail = f"API 返回错误 ({e.response.status_code})"
         try:
             detail += f": {e.response.json()}"
-        except Exception:
+        except ValueError:
             detail += f": {e.response.text[:200]}"
         raise HTTPException(502, detail)
     except req.ConnectionError:

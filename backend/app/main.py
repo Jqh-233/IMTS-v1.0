@@ -14,6 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.logging_config import get_logger, setup_logging
+
+logger = get_logger(__name__)
+setup_logging()
+logger.info("IMTS 后端启动，日志系统已初始化")
+
 PROJECT_ROOT = BACKEND_DIR.parent
 ENV_PATH = PROJECT_ROOT / ".env"
 load_dotenv(ENV_PATH)

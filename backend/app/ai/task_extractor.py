@@ -4,6 +4,9 @@ from datetime import date, datetime, timedelta
 from app.ai.llm_client import extract_task_with_llm
 from app.ai.prompt_engine import build_task_extraction_prompt
 from app.config import get_llm_config
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 ACTION_PATTERN = r"提交|完成|确认|回复|处理|修改|发送|发来|参加|准备|补充|审批|整理|提供|更新|安排|联系|跟进|上传|填写|报名"
@@ -28,6 +31,7 @@ def extract_task(email, force=False):
         except Exception as exc:
             if mode == "llm":
                 raise
+            logger.warning("LLM 提取失败，降级到规则引擎: %s", exc)
             fallback = extract_task_by_rules(email, force=force)
             fallback["llm_error"] = str(exc)
             return fallback

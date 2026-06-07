@@ -4,9 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.ai.task_extractor import extract_task as do_extract_task
 from app.database import get_db
+from app.logging_config import get_logger
 from app.models import Email, Task
 from app.schemas import EmailListOut, EmailOut, TaskOut
 from app.services.mail_sync_service import mark_email_processed, sync_qq_recent_emails, sync_sample_emails
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["emails"])
 
@@ -87,6 +90,7 @@ def sync_demo(db: Session = Depends(get_db)):
                     db.add(task)
                     created += 1
             except Exception:
+                logger.warning("提取演示邮件任务失败 email_id=%d", eid, exc_info=True)
                 failed += 1
                 continue  # 提取失败的邮件不标记已处理，下次可重试
 
@@ -104,6 +108,7 @@ def sync_demo(db: Session = Depends(get_db)):
         raise
     except Exception as e:
         db.rollback()
+        logger.error("演示邮件同步异常: %s", e, exc_info=True)
         raise HTTPException(500, f"同步失败：{str(e)}")
 
 
@@ -161,8 +166,9 @@ def sync_qq(db: Session = Depends(get_db)):
                     db.add(task)
                     created += 1
             except Exception:
+                logger.warning("提取QQ邮件任务失败 email_id=%d", eid, exc_info=True)
                 failed += 1
-                continue  # 提取失败的邮件不标记已处理，下次可重试
+                continue
 
             mark_email_processed(db, eid)
 
@@ -178,6 +184,7 @@ def sync_qq(db: Session = Depends(get_db)):
         raise
     except Exception as e:
         db.rollback()
+        logger.error("QQ邮件同步异常: %s", e, exc_info=True)
         raise HTTPException(500, f"同步失败：{str(e)}")
 
 
