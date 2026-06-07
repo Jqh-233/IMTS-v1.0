@@ -62,8 +62,12 @@ IMTS-v1.0/
 ├── .env.example                # 环境变量模板
 ├── imts_demo.db                # SQLite 数据库（运行时生成）
 ├── backend/                    # FastAPI 后端
+│   ├── alembic/                # 数据库迁移（Alembic）
+│   │   ├── env.py
+│   │   └── versions/
+│   ├── alembic.ini
 │   └── app/
-│       ├── main.py             # 应用入口 + lifespan 建表 + 静态文件
+│       ├── main.py             # 应用入口 + lifespan Alembic 迁移 + 静态文件
 │       ├── database.py         # SQLAlchemy 引擎与会话（DB 统一入口）
 │       ├── config.py           # .env 配置读写
 │       ├── logging_config.py   # 日志系统（模块级 logger 工厂）

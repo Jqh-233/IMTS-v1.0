@@ -79,11 +79,12 @@ GET    /api/stats             # 获取统计数据
 
 ## 数据库
 
-统一使用 SQLite + SQLAlchemy ORM（已消除早期的 raw sqlite3 双轨制），远期可迁移 PostgreSQL：
+统一使用 SQLite + SQLAlchemy ORM（已消除早期的 raw sqlite3 双轨制），通过 Alembic 管理数据库迁移，远期可迁移 PostgreSQL：
 
 - `emails` 表：原始邮件
 - `tasks` 表：提取的任务（外键关联 emails）
-- 建表：`Base.metadata.create_all()` 在 lifespan 启动事件中自动执行
+- 建表/升级：`alembic upgrade head` 在 lifespan 启动事件中自动执行
+- 测试：内存 SQLite (`:memory:`) + StaticPool，与生产库完全隔离
 
 ## 目录结构
 
